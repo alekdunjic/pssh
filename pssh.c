@@ -6,9 +6,12 @@
 #include <sys/wait.h>
 #include <sys/stat.h>
 #include <fcntl.h>
+#include <signal.h>
+#include <wait.h>
 
 #include "builtin.h"
 #include "parse.h"
+#include "jobs.h"
 
 #define READ_SIDE 0
 #define WRITE_SIDE 1
@@ -18,6 +21,59 @@
  *******************************************/
 #define DEBUG_PARSE 0
 
+// TODO: Replace this with an actual name
+char job_name[] = "job name";
+int our_tty;
+JobArray job_arr;
+
+void set_fg_pgrp(pid_t pgrp)
+{
+    void (*sav)(int sig);
+
+    if (pgrp == 0)
+        pgrp = getpgrp();
+
+    sav = signal(SIGTTOU, SIG_IGN);
+    tcsetpgrp(our_tty, pgrp);
+    signal(SIGTTOU, sav);
+}
+
+void handler(int sig) {
+	pid_t chld;
+	int status;
+	switch(sig) {
+		case SIGTTOU:
+		case SIGTTIN:
+			while(tcgetpgrp(STDOUT_FILENO) != getpgrp())
+				pause();
+			break;
+
+		case SIGCHLD:
+			while( (chld = waitpid(-1, &status, WNOHANG | WCONTINUED | WUNTRACED)) > 0 ) {
+				if (WIFSTOPPED(status)) {
+//					set_fg_pgrp(0);
+//					printf("Parent: Child %d stopped! Continuing it!\n", chld);
+//					set_fg_pgrp(getpgid(chld));
+//					kill(chld, SIGCONT);
+				} else if (WIFCONTINUED(status)) {
+				} else {
+					int j = JobArray_HandleChild(&job_arr, chld);
+					set_fg_pgrp(0);
+					printf("Child %d received\n", chld);
+					set_fg_pgrp(getpgid(chld));
+					if (j > -1) {
+						set_fg_pgrp(0);
+						printf("Parent: Process Group %d has terminated\n", job_arr.jobs[j]->pgid);
+						JobArray_RemoveJob(&job_arr, j);
+					}
+				}
+			}
+			break;
+
+		default:
+			break;
+	}
+}
 
 void print_banner ()
 {
@@ -172,6 +228,9 @@ void execute_tasks (Parse* P)
     unsigned int t;
 	int fd1[2], fd2[2];
 	int num_children = 0;
+	JobStatus status = P->background ? BG : FG;
+	Job *job = Job_Constructor(job_name, P->ntasks, status);
+	JobArray_AddJob(&job_arr, job);
 
     for (t = 0; t < P->ntasks; t++) {
 		if (!strcmp("exit", P->tasks[t].cmd)) {
@@ -193,11 +252,18 @@ void execute_tasks (Parse* P)
 					return;
 				}
 			}
-			switch(fork()) {
+			pid_t curr_pid = fork();
+			Job_AddPid(job, curr_pid, t); // add the pid to pids[] for the job
+			Job_MovePidToProcessGroup(job, t); // move the pid to the Job's process group
+			// TODO: Move to foreground
+			switch(curr_pid) {
 				case -1:
 					fprintf(stderr, "error: failed to fork a process\n");
 					return;
 				case 0:
+					if (!P->background) {
+						while (tcgetpgrp(STDOUT_FILENO) != getpgrp());
+					}
 					// pipe on the right:
 					if (t < P->ntasks - 1) {
 						configure_out_pipe(pipe_out);
@@ -230,9 +296,11 @@ void execute_tasks (Parse* P)
             break;
         }
     }
-	int i;
-	for (i = 0; i < num_children; i++) {
-		wait(NULL);
+	printf("Created process group %d\n", job->pgid);
+	if (!P->background && isatty(STDOUT_FILENO)) {
+        tcsetpgrp(STDOUT_FILENO, job->pgid);
+	} else {
+		Job_PrintPids(job);
 	}
 }
 
@@ -241,8 +309,15 @@ int main (int argc, char** argv)
 {
     char* cmdline;
     Parse* P;
+	job_arr = JobArray_Constructor();
 
     print_banner ();
+	
+	// TODO: Save the old handlers?
+    our_tty = dup(STDERR_FILENO);
+	signal(SIGTTOU, handler);
+	signal(SIGTTIN, handler);
+	signal(SIGCHLD, handler);
 
     while (1) {
 		char * prompt = build_prompt();
