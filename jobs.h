@@ -21,9 +21,13 @@ typedef struct {
 typedef struct {
 	Job **jobs;
 	unsigned int njobs;
+	int curr_fg; // if -1, it's pssh
 } JobArray;
 
 JobArray job_arr; // place in the data segment
+int our_tty;
+
+void set_fg_pgrp(pid_t pgrp);
 
 Job *Job_Constructor(char *name, unsigned int npids, JobStatus status); 
 void Job_Destructor(Job *job); 
@@ -33,6 +37,7 @@ int Job_HasPid(Job *job, pid_t pid);
 void Job_MovePidToProcessGroup(Job *job, unsigned int t); 
 int Job_IsFinished(Job* job); 
 void Job_PrintPids(Job *job); 
+void JobArray_PrintJobs(JobArray *job_arr);
 
 JobArray JobArray_Constructor(); 
 void JobArray_Destructor(JobArray *job_arr); 
@@ -40,5 +45,7 @@ void JobArray_AddJob(JobArray *job_arr, Job *job);
 void JobArray_RemoveJob(JobArray *job_arr, pid_t pgid); 
 int JobArray_HandleChild(JobArray *job_arr, pid_t pid); 
 void JobArray_PrintJobs(JobArray *job_arr);
+void JobArray_MoveToFg(JobArray *job_arr, int job_num);
+int JobArray_FindJob(JobArray *job_arr, pid_t pid);
 
 #endif /* _jobs_h_ */

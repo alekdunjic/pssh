@@ -3,10 +3,23 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <unistd.h>
+#include <signal.h>
+#include <unistd.h>
 
 #include "jobs.h"
 
 // TODO: Handle all the malloc errors
+void set_fg_pgrp(pid_t pgrp)
+{
+    void (*sav)(int sig);
+
+    if (pgrp == 0)
+        pgrp = getpgrp();
+
+    sav = signal(SIGTTOU, SIG_IGN);
+    tcsetpgrp(our_tty, pgrp);
+    signal(SIGTTOU, sav);
+}
 
 /* return a Job pointer on the heap */
 Job *Job_Constructor(char *name, unsigned int npids, JobStatus status) {
@@ -80,6 +93,7 @@ JobArray JobArray_Constructor() {
 		job_arr.jobs[i] = NULL;
 	}
 	job_arr.njobs = 0;
+	job_arr.curr_fg = -1;
 	return job_arr;
 }
 
@@ -132,19 +146,48 @@ int JobArray_HandleChild(JobArray *job_arr, pid_t pid) {
 	return -1;
 }
 
-void JobArray_PrintJobs(JobArray *job_arr) {
+int JobArray_FindJob(JobArray *job_arr, pid_t pid) {
+	int i;
+	for (i = 0; i < 100; i++) {
+		if (job_arr->jobs[i] != NULL && Job_HasPid(job_arr->jobs[i], pid)) {
+			return i;
+		}
+	}
+	return -1;
+}
+
+void Job_PrintJob(Job *job) {
 	char stopped_str[] = "stopped";
 	char running_str[] = "running";
 	char *status_str;
+	if(job->status == STOPPED) {
+		status_str = stopped_str;
+	} else {
+		status_str = running_str;
+	}
+	printf("[%d] + %s \t %s\n", job->num, status_str, job->name);
+}
+
+void JobArray_PrintJobs(JobArray *job_arr) {
 	int i;
 	for (i = 0; i < 100; i++) {
 		if (job_arr->jobs[i] != NULL) {
-			if(job_arr->jobs[i]->status == STOPPED) {
-				status_str = stopped_str;
-			} else {
-				status_str = running_str;
-			}
-			printf("[%d] + %s \t %s\n", i, status_str, job_arr->jobs[i]->name);
+			Job_PrintJob(job_arr->jobs[i]);
 		}
 	}
+}
+
+void JobArray_MoveToFg(JobArray *job_arr, int job_num) {
+	if (job_num == -1) {
+		set_fg_pgrp(0);
+	} else {
+		job_arr->jobs[job_num]->status = FG;
+		set_fg_pgrp(job_arr->jobs[job_num]->pgid);
+		killpg(job_arr->jobs[job_num]->pgid, SIGCONT);
+	}
+	/* update the status of the old FG to BG */
+	if (job_arr->curr_fg != -1 && job_arr->jobs[job_arr->curr_fg] != NULL) {
+		job_arr->jobs[job_arr->curr_fg]->status = BG;
+	}
+	job_arr->curr_fg = job_num;
 }

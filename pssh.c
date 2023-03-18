@@ -21,22 +21,6 @@
  *******************************************/
 #define DEBUG_PARSE 0
 
-// TODO: Replace this with an actual name
-int our_tty;
-JobArray job_arr;
-
-void set_fg_pgrp(pid_t pgrp)
-{
-    void (*sav)(int sig);
-
-    if (pgrp == 0)
-        pgrp = getpgrp();
-
-    sav = signal(SIGTTOU, SIG_IGN);
-    tcsetpgrp(our_tty, pgrp);
-    signal(SIGTTOU, sav);
-}
-
 void handler(int sig) {
 	pid_t chld;
 	int status;
@@ -50,19 +34,23 @@ void handler(int sig) {
 		case SIGCHLD:
 			while( (chld = waitpid(-1, &status, WNOHANG | WCONTINUED | WUNTRACED)) > 0 ) {
 				if (WIFSTOPPED(status)) {
-					set_fg_pgrp(0);
-					printf("Parent: Child %d stopped! Continuing it!\n", chld);
-					set_fg_pgrp(getpgid(chld));
-					kill(chld, SIGCONT);
+					int j = JobArray_FindJob(&job_arr, chld);
+					if (job_arr.jobs[j]->status != STOPPED) {
+						printf("[%d] + suspended \t %s\n", j, job_arr.jobs[j]->name);
+					}
+					if (job_arr.jobs[j]->status == FG) {
+						JobArray_MoveToFg(&job_arr, -1);
+					}
+					job_arr.jobs[j]->status = STOPPED;
 				} else if (WIFCONTINUED(status)) {
+					int j = JobArray_FindJob(&job_arr, chld);
+					if (job_arr.curr_fg == -1) {
+						printf("[%d] + continued \t %s\n", j, job_arr.jobs[j]->name);
+					}
 				} else {
 					int j = JobArray_HandleChild(&job_arr, chld);
-//					set_fg_pgrp(0);
-//					printf("Child %d received\n", chld);
-//					set_fg_pgrp(getpgid(chld));
 					if (j > -1) {
-						set_fg_pgrp(0);
-//						printf("Parent: Process Group %d has terminated\n", job_arr.jobs[j]->pgid);
+						JobArray_MoveToFg(&job_arr, -1);
 						JobArray_RemoveJob(&job_arr, j);
 					}
 				}
@@ -302,7 +290,8 @@ void execute_tasks (Parse* P)
         }
         else {
             printf ("pssh: command not found: %s\n", P->tasks[t].cmd);
-            break;
+			JobArray_RemoveJob(&job_arr, job->num);
+            return;
         }
     }
 //	printf("Created process group %d\n", job->pgid);

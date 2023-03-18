@@ -2,6 +2,8 @@
 #include <stdio.h>
 #include <string.h>
 #include <unistd.h>
+#include <ctype.h>
+#include <signal.h>
 
 #include "builtin.h"
 #include "parse.h"
@@ -68,8 +70,26 @@ void which (char * arg) {
 	exit(EXIT_SUCCESS);
 }
 
+int check_if_positive_integer(char *str) {
+	while (*str) {
+		if (!isdigit(*str)) { // Check if each character is a digit
+			return 0;
+		}
+		str++;
+	}
+	return 1;
+}
+
+int convert_jobnum_to_int(char *job_num_arg) {
+	if (job_num_arg[0] == '%' && check_if_positive_integer(job_num_arg + 1)) {
+		return atoi(job_num_arg + 1);
+	} 
+	return -1;
+}
+
 void builtin_execute (Task T)
 {
+	int job_int;
     if (!strcmp (T.cmd, "exit")) {
         exit (EXIT_SUCCESS);
     } else if (!strcmp (T.cmd, "which")) {
@@ -80,8 +100,17 @@ void builtin_execute (Task T)
 		which(T.argv[1]);
 	} else if (!strcmp (T.cmd, "jobs")) {
 		JobArray_PrintJobs(&job_arr);
-
 	} else if (!strcmp (T.cmd, "fg")) {
+		if (T.argv[1] == NULL) {
+			fprintf(stderr, "error: the fg command requires an argument.\n");
+			return;
+		} else if ((job_int = convert_jobnum_to_int(T.argv[1])) != -1 &&
+				job_arr.jobs[job_int] != NULL) {
+			JobArray_MoveToFg(&job_arr, job_int);
+		} else {
+			fprintf(stderr, "pssh: invalid job number: %s.\n", T.argv[1]);
+			return;
+		}
 	} else if (!strcmp (T.cmd, "bg")) {
 	} else if (!strcmp (T.cmd, "kill")) {
 	}
