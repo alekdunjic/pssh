@@ -120,7 +120,7 @@ void builtin_execute (Task T)
 				JobArray_MoveToBg(&job_arr, job_int);
 			}
 		} else {
-			fprintf(stderr, "pssh: invalid job number: %s.\n", T.argv[1]);
+			fprintf(stderr, "pssh: invalid job number: %s\n", T.argv[1]);
 			return;
 		}
 	} else if (!strcmp (T.cmd, "kill")) {
@@ -143,7 +143,7 @@ void builtin_execute (Task T)
 					fprintf(stderr, "pssh: invalid job number: %s\n", T.argv[arg]);
 				}
 			} else {
-				if ((pid_int = convert_jobnum_to_int(T.argv[arg]))) {
+				if ((pid_int = convert_pid_to_int(T.argv[arg]))) {
 					/* kill here */
 					int e = kill(pid_int, sig);
 					if (e != 0) {

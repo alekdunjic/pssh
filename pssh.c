@@ -38,22 +38,22 @@ void handler(int sig) {
 					if (job_arr.jobs[j]->status == FG) {
 						JobArray_MoveToFg(&job_arr, -1);
 						if (WSTOPSIG(status) == SIGTSTP){
-							printf("[%d] + suspended \t %s\n", j, job_arr.jobs[j]->name);
+							printf("\n[%d] + suspended \t %s\n", j, job_arr.jobs[j]->name);
 						}
 					}
 					job_arr.jobs[j]->status = STOPPED;
 				} else if (WIFCONTINUED(status)) {
 					int j = JobArray_FindJob(&job_arr, chld);
-					if (job_arr.jobs[j]->status == BG) {
-						printf("[%d] + continued \t %s\n", j, job_arr.jobs[j]->name);
+					if (job_arr.jobs[j]->status == STOPPED) {
+						job_arr.jobs[j]->status = BG;
+						printf("\n[%d] + continued \t %s\n", j, job_arr.jobs[j]->name);
 					}
 				} else {
 					int j = JobArray_HandleChild(&job_arr, chld);
 					if (j > -1) {
-						if (job_arr.jobs[j]->status == BG) {
-							printf("\n");
-							printf("[%d] + done \t %s\n", j, job_arr.jobs[j]->name);
-						} 
+						if (job_arr.jobs[j]->status == BG || job_arr.jobs[j]->status == STOPPED) {
+							printf("\n[%d] + done \t %s\n", j, job_arr.jobs[j]->name);
+						}
 						if (job_arr.jobs[j]->status == FG) {
 							JobArray_MoveToFg(&job_arr, -1);
 						}

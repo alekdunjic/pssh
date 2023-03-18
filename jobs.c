@@ -193,6 +193,6 @@ void JobArray_MoveToFg(JobArray *job_arr, int job_num) {
 }
 
 void JobArray_MoveToBg(JobArray *job_arr, int job_num) {
-	job_arr->jobs[job_num]->status = BG;
+//	job_arr->jobs[job_num]->status = BG;
 	killpg(job_arr->jobs[job_num]->pgid, SIGCONT);
 }
