@@ -22,7 +22,6 @@
 #define DEBUG_PARSE 0
 
 // TODO: Replace this with an actual name
-char job_name[] = "job name";
 int our_tty;
 JobArray job_arr;
 
@@ -51,19 +50,19 @@ void handler(int sig) {
 		case SIGCHLD:
 			while( (chld = waitpid(-1, &status, WNOHANG | WCONTINUED | WUNTRACED)) > 0 ) {
 				if (WIFSTOPPED(status)) {
-//					set_fg_pgrp(0);
-//					printf("Parent: Child %d stopped! Continuing it!\n", chld);
-//					set_fg_pgrp(getpgid(chld));
-//					kill(chld, SIGCONT);
+					set_fg_pgrp(0);
+					printf("Parent: Child %d stopped! Continuing it!\n", chld);
+					set_fg_pgrp(getpgid(chld));
+					kill(chld, SIGCONT);
 				} else if (WIFCONTINUED(status)) {
 				} else {
 					int j = JobArray_HandleChild(&job_arr, chld);
-					set_fg_pgrp(0);
-					printf("Child %d received\n", chld);
-					set_fg_pgrp(getpgid(chld));
+//					set_fg_pgrp(0);
+//					printf("Child %d received\n", chld);
+//					set_fg_pgrp(getpgid(chld));
 					if (j > -1) {
 						set_fg_pgrp(0);
-						printf("Parent: Process Group %d has terminated\n", job_arr.jobs[j]->pgid);
+//						printf("Parent: Process Group %d has terminated\n", job_arr.jobs[j]->pgid);
 						JobArray_RemoveJob(&job_arr, j);
 					}
 				}
@@ -219,6 +218,14 @@ void configure_in_pipe(int *pipe_in) {
 	close(pipe_in[READ_SIDE]);
 }
 
+int ran_by_shell(char * str) {
+	return !strcmp(str, "exit") ||
+		!strcmp(str, "jobs") ||
+		!strcmp(str, "bg") ||
+		!strcmp(str, "fg") ||
+		!strcmp(str, "kill");
+}
+
 /* Called upon receiving a successful parse.
  * This function is responsible for cycling through the
  * tasks, and forking, executing, etc as necessary to get
@@ -229,12 +236,14 @@ void execute_tasks (Parse* P)
 	int fd1[2], fd2[2];
 	int num_children = 0;
 	JobStatus status = P->background ? BG : FG;
-	Job *job = Job_Constructor(job_name, P->ntasks, status);
+	Job *job = Job_Constructor(P->cmdline, P->ntasks, status);
 	JobArray_AddJob(&job_arr, job);
 
     for (t = 0; t < P->ntasks; t++) {
-		if (!strcmp("exit", P->tasks[t].cmd)) {
+		if (ran_by_shell(P->tasks[t].cmd)) {
+			JobArray_RemoveJob(&job_arr, job->num);
 			builtin_execute(P->tasks[t]);
+			return;
 		}
 		else if (command_found (P->tasks[t].cmd) || is_builtin (P->tasks[t].cmd)) {
 			num_children ++;
@@ -296,7 +305,7 @@ void execute_tasks (Parse* P)
             break;
         }
     }
-	printf("Created process group %d\n", job->pgid);
+//	printf("Created process group %d\n", job->pgid);
 	if (!P->background && isatty(STDOUT_FILENO)) {
         tcsetpgrp(STDOUT_FILENO, job->pgid);
 	} else {

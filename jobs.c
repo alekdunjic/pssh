@@ -12,7 +12,8 @@
 Job *Job_Constructor(char *name, unsigned int npids, JobStatus status) {
 	Job *job = malloc(sizeof(Job));
 	job->num = -1;
-	job->name = name;
+	job->name = malloc(sizeof(char) * (strlen(name) + 1));
+	strcpy(job->name, name);
 	job->pids = malloc(npids*sizeof(pid_t));
 	job->npids = npids;
 	job->pgid = 0;
@@ -23,6 +24,7 @@ Job *Job_Constructor(char *name, unsigned int npids, JobStatus status) {
 
 /* deallocates a job */
 void Job_Destructor(Job *job) {
+	free(job->name);
 	free(job->pids);
 	free(job);
 }
@@ -128,4 +130,21 @@ int JobArray_HandleChild(JobArray *job_arr, pid_t pid) {
 		}
 	}
 	return -1;
+}
+
+void JobArray_PrintJobs(JobArray *job_arr) {
+	char stopped_str[] = "stopped";
+	char running_str[] = "running";
+	char *status_str;
+	int i;
+	for (i = 0; i < 100; i++) {
+		if (job_arr->jobs[i] != NULL) {
+			if(job_arr->jobs[i]->status == STOPPED) {
+				status_str = stopped_str;
+			} else {
+				status_str = running_str;
+			}
+			printf("[%d] + %s \t %s\n", i, status_str, job_arr->jobs[i]->name);
+		}
+	}
 }

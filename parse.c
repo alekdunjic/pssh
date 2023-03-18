@@ -359,6 +359,8 @@ static Parse* parse_new ()
 
 static void parse_init (Parse* P, char* cmdline)
 {
+	P->cmdline = malloc(sizeof(char) * (strlen(cmdline) + 1));
+	strcpy(P->cmdline, cmdline);
     P->background = is_background (cmdline);
 
     if (count_char ('&', cmdline)) {
@@ -383,6 +385,9 @@ void parse_destroy (Parse** P)
 
     if (!*P)
         return;
+
+    if ((*P)->cmdline)
+        free ((*P)->cmdline);
 
     if ((*P)->infile)
         free ((*P)->infile);

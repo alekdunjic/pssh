@@ -9,6 +9,8 @@ typedef struct {
 } Task;
 
 typedef struct {
+	char* cmdline;		 /* entire command line */
+	
     Task* tasks;         /* ordered list of tasks to pipe */
     int   ntasks;        /* # of tasks in the parse */
 

@@ -8,7 +8,6 @@ typedef enum {
 	FG,
 } JobStatus;
 
-
 typedef struct {
 	int num;
 	char* name;
@@ -24,6 +23,8 @@ typedef struct {
 	unsigned int njobs;
 } JobArray;
 
+JobArray job_arr; // place in the data segment
+
 Job *Job_Constructor(char *name, unsigned int npids, JobStatus status); 
 void Job_Destructor(Job *job); 
 void Job_AddPid(Job *job, pid_t pid, unsigned int t); 
@@ -38,5 +39,6 @@ void JobArray_Destructor(JobArray *job_arr);
 void JobArray_AddJob(JobArray *job_arr, Job *job); 
 void JobArray_RemoveJob(JobArray *job_arr, pid_t pgid); 
 int JobArray_HandleChild(JobArray *job_arr, pid_t pid); 
+void JobArray_PrintJobs(JobArray *job_arr);
 
 #endif /* _jobs_h_ */

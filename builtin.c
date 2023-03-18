@@ -5,6 +5,7 @@
 
 #include "builtin.h"
 #include "parse.h"
+#include "jobs.h"
 
 static char* builtin[] = {
     "exit",   /* exits the shell */
@@ -77,6 +78,12 @@ void builtin_execute (Task T)
 			exit (EXIT_SUCCESS);
 		}	
 		which(T.argv[1]);
+	} else if (!strcmp (T.cmd, "jobs")) {
+		JobArray_PrintJobs(&job_arr);
+
+	} else if (!strcmp (T.cmd, "fg")) {
+	} else if (!strcmp (T.cmd, "bg")) {
+	} else if (!strcmp (T.cmd, "kill")) {
 	}
     else {
         printf ("pssh: builtin command: %s (not implemented!)\n", T.cmd);
