@@ -46,6 +46,7 @@ void JobArray_RemoveJob(JobArray *job_arr, pid_t pgid);
 int JobArray_HandleChild(JobArray *job_arr, pid_t pid); 
 void JobArray_PrintJobs(JobArray *job_arr);
 void JobArray_MoveToFg(JobArray *job_arr, int job_num);
+void JobArray_MoveToBg(JobArray *job_arr, int job_num);
 int JobArray_FindJob(JobArray *job_arr, pid_t pid);
 
 #endif /* _jobs_h_ */

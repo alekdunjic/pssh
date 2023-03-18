@@ -87,9 +87,17 @@ int convert_jobnum_to_int(char *job_num_arg) {
 	return -1;
 }
 
+pid_t convert_pid_to_int(char *pid_arg) {
+	if (check_if_positive_integer(pid_arg)) {
+		return atol(pid_arg);
+	}
+	return -1;
+}
+
 void builtin_execute (Task T)
 {
 	int job_int;
+	pid_t pid_int;
     if (!strcmp (T.cmd, "exit")) {
         exit (EXIT_SUCCESS);
     } else if (!strcmp (T.cmd, "which")) {
@@ -100,19 +108,53 @@ void builtin_execute (Task T)
 		which(T.argv[1]);
 	} else if (!strcmp (T.cmd, "jobs")) {
 		JobArray_PrintJobs(&job_arr);
-	} else if (!strcmp (T.cmd, "fg")) {
+	} else if (!strcmp (T.cmd, "fg") || !strcmp(T.cmd, "bg")) {
 		if (T.argv[1] == NULL) {
 			fprintf(stderr, "error: the fg command requires an argument.\n");
 			return;
 		} else if ((job_int = convert_jobnum_to_int(T.argv[1])) != -1 &&
 				job_arr.jobs[job_int] != NULL) {
-			JobArray_MoveToFg(&job_arr, job_int);
+			if (!strcmp(T.cmd, "fg")) {
+				JobArray_MoveToFg(&job_arr, job_int);
+			} else { // bg:
+				JobArray_MoveToBg(&job_arr, job_int);
+			}
 		} else {
 			fprintf(stderr, "pssh: invalid job number: %s.\n", T.argv[1]);
 			return;
 		}
-	} else if (!strcmp (T.cmd, "bg")) {
 	} else if (!strcmp (T.cmd, "kill")) {
+		int sig = SIGTERM;
+		int arg = 1;
+		if (!strcmp(T.argv[1], "-s")) {
+			sig = atoi(T.argv[2]);
+			arg += 2;
+		}
+		for (; T.argv[arg] != NULL; arg++) {
+			if (T.argv[arg][0] == '%') {
+				if ((job_int = convert_jobnum_to_int(T.argv[arg])) != -1 &&
+								job_arr.jobs[job_int] != NULL) {
+					/* kill here */
+					int e = killpg(job_arr.jobs[job_int]->pgid, sig);
+					if (e != 0) {
+						fprintf(stderr, "pssh: invalid job number: %s\n", T.argv[arg]);
+					}
+				} else {
+					fprintf(stderr, "pssh: invalid job number: %s\n", T.argv[arg]);
+				}
+			} else {
+				if ((pid_int = convert_jobnum_to_int(T.argv[arg]))) {
+					/* kill here */
+					int e = kill(pid_int, sig);
+					if (e != 0) {
+						fprintf(stderr, "pssh: invalid pid: %s\n", T.argv[arg]);
+					}
+				} else {
+					fprintf(stderr, "pssh: invalid pid: %s\n", T.argv[arg]);
+				}
+			}
+		}
+
 	}
     else {
         printf ("pssh: builtin command: %s (not implemented!)\n", T.cmd);
